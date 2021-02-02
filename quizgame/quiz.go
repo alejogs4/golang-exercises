@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 type problem struct {
@@ -49,6 +50,9 @@ func exit(message string) {
 
 // PlayGame is the entry point to quiz game
 func PlayGame() {
+	timeLimit := flag.Int("Time", 20, "Time in seconds to complete the quiz")
+	flag.Parse()
+
 	csvContent, error := getCSVContent()
 
 	if error != nil {
@@ -56,14 +60,27 @@ func PlayGame() {
 	}
 	problems := mapCSVToProblems(csvContent)
 
+	timer := time.NewTimer(time.Duration(*timeLimit) * time.Second)
 	score := 0
+
 	for _, problem := range problems {
 		fmt.Printf("The answer to %s is \n", problem.question)
-		var answer string
-		fmt.Scanf("%s", &answer)
 
-		if answer == problem.answer {
-			score++
+		answerChannel := make(chan string)
+		go func() {
+			var answer string
+			fmt.Scanf("%s", &answer)
+			answerChannel <- answer
+		}()
+
+		select {
+		case <-timer.C:
+			fmt.Println("Score", score)
+			return
+		case answer := <-answerChannel:
+			if answer == problem.answer {
+				score++
+			}
 		}
 	}
 	fmt.Println(score)
